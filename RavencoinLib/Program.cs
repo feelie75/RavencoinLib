@@ -20,6 +20,7 @@ namespace Ravencoin
 
         public static void Main()
         {
+
             for (int i = 0; i < loops; i++)
             {
                 Console.WriteLine(DateTime.Now);
