@@ -87,6 +87,73 @@ namespace Ravencoin
             return (wif+","+privateKey.ToHex()+","+pubKey.Decompress().ToString()+","+address+"\n");
         }
 
+        // pass in the HEX privateKey (32 hex byte string; 64 characters, 256-bits)
+        public static string privateKeyToWif(string privkey, bool compressed = true)
+        {
+            while (privkey.Length < 64) { 
+                privkey = "0" + privkey;
+            }
+
+            string secretKey = "80" + privkey; // "ef" for testnet
+
+            if (compressed) {
+                secretKey += "01";
+            }
+
+            secretKey += getHash("sha256", getHash("sha256", secretKey)).Substring(0, 8);
+            //Console.WriteLine(secretKey);
+            string bigIntReverseSecret = bchexdec(secretKey);
+            //Console.WriteLine("VALUE: " + bigIntReverseSecret);
+            BigInteger bigint = BigInteger.Parse(bigIntReverseSecret);
+            string bigIntHash = bigint.ToString("X");
+
+            string wif = ConvertToBase58(bigIntHash);
+            
+            return (wif);
+        }
+
+        public static string bchexdec(string hex)
+        {
+            // We could have changed the for-loop to go from right-to-left but this
+            // seemed easier to reverse the hex and add stuff up left to right.
+            hex = littleEndian(hex);
+            //Console.WriteLine("LE HEX: " + hex);
+
+            BigInteger total = new BigInteger(0);
+
+            int len = hex.Length;
+            BigInteger multiplier = new BigInteger(1);
+            BigInteger baseMult = new BigInteger(256);
+
+            for (int i = 0; i < len; i += 2) {
+                string currentHex = hex.Substring(i, 2);
+                int dec = Convert.ToInt32(currentHex, 16);
+                //Console.WriteLine("DEC: " + dec.ToString());
+                BigInteger newDec = new BigInteger(dec);
+                newDec = newDec * multiplier;
+                total = total + newDec;
+
+                multiplier = multiplier * baseMult;
+            }
+
+            return (total.ToString());
+        }
+
+        static string littleEndian(string hex)
+        {
+            string reversed = "";
+
+            int len = hex.Length;
+            for (int i = len-2; i >= 0; i -= 2)
+            {
+                string currentHex = hex.Substring(i, 2);
+                reversed += currentHex;
+            }
+
+            return (reversed);
+        }
+
+
         public static byte[] HexStringToByteArray(string hex)
         {
             if (String.IsNullOrWhiteSpace(hex))
@@ -139,9 +206,13 @@ namespace Ravencoin
         }
 
 
+        // This expects a HEX string that represents your BigInteger. 
         static string ConvertToBase58(string hash, int numbase = 16)
         {
             BigInteger x;
+
+            // if the hex starts with 80 or higher, it will interpret it as a NEGATIVE signed number.
+            // To get around this, prefix your hex with 0x, like "0x80..." that will fool it.
             if (numbase == 16 && hash.Substring(0, 2) == "0x")
             {
                 x = BigInteger.Parse(hash.Substring(2), NumberStyles.HexNumber);
@@ -150,7 +221,7 @@ namespace Ravencoin
             {
                 x = BigInteger.Parse(hash, NumberStyles.HexNumber);
             }
-
+            //Console.WriteLine(x.ToString());
             StringBuilder sb = new StringBuilder();
             while (x > 0)
             {
